@@ -118,9 +118,10 @@
       </div>
 
       <!-- Chat panel -->
-      <div class="chat-panel">
+      <div class="chat-panel" id="chatPanel">
         <div class="chat-header">
           <span>💬 Chat</span>
+          <button id="closeChatBtn" class="close-chat-btn" aria-label="Close chat" title="Close chat">✕</button>
         </div>
 
         <div id="chatMessages" class="chat-messages" role="log" aria-live="polite" aria-label="Chat messages">
@@ -142,6 +143,19 @@
 
     </aside>
   </div><!-- /.main -->
+
+  <!-- Dedicated WebRTC audio playback element (fixes Android audio routing) -->
+  <audio id="remoteAudio" autoplay playsinline></audio>
+
+  <!-- Mobile Floating Chat Button -->
+  <button id="mobileChatFab" class="mobile-chat-fab" aria-label="Toggle chat">
+    <span class="fab-icon">💬</span>
+    <span class="fab-text">Chat</span>
+    <span id="chatBadge" class="chat-badge hidden">0</span>
+  </button>
+
+  <!-- Backdrop for mobile slide-up chat -->
+  <div id="chatBackdrop" class="chat-backdrop"></div>
 
 </div><!-- /.app -->
 

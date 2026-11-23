@@ -63,19 +63,106 @@ const ICE_CONFIG = {
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 async function startMedia() {
   try {
+    // Primary constraints (works on iOS, modern Android, Desktop)
     localStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-      audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 48000 }
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
     });
+  } catch (err) {
+    console.warn('[Media] Strict audio constraints failed, trying basic audio/video:', err.message);
+    try {
+      // Fallback for Android hardware HALs that fail on custom constraints
+      localStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true
+      });
+    } catch (fallbackErr) {
+      console.warn('[Media] Camera/mic access denied or unavailable:', fallbackErr.message);
+      myNoCam.classList.remove('hidden');
+    }
+  }
+
+  if (localStream) {
     localVideo.srcObject = localStream;
     localVideo.muted = true; // Don't echo your own audio back
     myNoCam.classList.add('hidden');
-  } catch (err) {
-    console.warn('Camera/mic access denied or unavailable:', err.message);
-    myNoCam.classList.remove('hidden');
-    // App still works without camera
+
+    // Ensure audio tracks are enabled explicitly
+    localStream.getAudioTracks().forEach(t => {
+      t.enabled = true;
+      console.log('[Media] Audio track active:', t.label);
+    });
+
+    // Start speaking visualizer (cam circle glows when speaking)
+    setupAudioIndicator(localStream);
   }
 }
+
+// Android Web Audio speaking indicator
+function setupAudioIndicator(stream) {
+  try {
+    const audioTracks = stream.getAudioTracks();
+    if (!audioTracks || audioTracks.length === 0) return;
+
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    const audioCtx = new AudioContextClass();
+    const analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 128;
+    analyser.smoothingTimeConstant = 0.4;
+
+    const source = audioCtx.createMediaStreamSource(stream);
+    source.connect(analyser);
+
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    function checkAudio() {
+      if (isMuted) {
+        $('myCamCircle')?.classList.remove('speaking');
+        requestAnimationFrame(checkAudio);
+        return;
+      }
+
+      analyser.getByteFrequencyData(dataArray);
+      let total = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        total += dataArray[i];
+      }
+      const avg = total / bufferLength;
+
+      if (avg > 18) {
+        $('myCamCircle')?.classList.add('speaking');
+      } else {
+        $('myCamCircle')?.classList.remove('speaking');
+      }
+
+      requestAnimationFrame(checkAudio);
+    }
+
+    checkAudio();
+  } catch (err) {
+    console.warn('[Audio] Audio indicator init:', err);
+  }
+}
+
+// Android Chrome Autoplay Audio Unlocker
+function unlockAudioPlayback() {
+  const remoteAudio = $('remoteAudio');
+  if (remoteAudio && remoteAudio.paused) {
+    remoteAudio.play().catch(() => {});
+  }
+  if (remoteVideo && remoteVideo.paused) {
+    remoteVideo.play().catch(() => {});
+  }
+}
+document.addEventListener('click', unlockAudioPlayback, { passive: true });
+document.addEventListener('touchstart', unlockAudioPlayback, { passive: true });
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    WEBRTC — peer connection
@@ -98,9 +185,23 @@ function createPeerConnection() {
 
   // Receive remote media tracks
   peerConnection.ontrack = (event) => {
-    console.log('[WebRTC] Remote track received');
+    console.log('[WebRTC] Remote track received:', event.track.kind);
     if (event.streams && event.streams[0]) {
-      remoteVideo.srcObject = event.streams[0];
+      const stream = event.streams[0];
+      remoteVideo.srcObject = stream;
+      remoteVideo.muted = false;
+      remoteVideo.volume = 1.0;
+      remoteVideo.play().catch(e => console.log('[WebRTC] video play:', e));
+
+      // Dedicated audio element (critical for Android Chrome)
+      const remoteAudio = $('remoteAudio');
+      if (remoteAudio) {
+        remoteAudio.srcObject = stream;
+        remoteAudio.muted = false;
+        remoteAudio.volume = 1.0;
+        remoteAudio.play().catch(e => console.log('[WebRTC] audio play waiting for gesture:', e));
+      }
+
       partnerNoCam.classList.add('hidden');
     }
   };
@@ -119,6 +220,7 @@ function createPeerConnection() {
     if (state === 'connected') {
       setStatus('connected', `${partnerNameLbl.textContent} connected 💕`);
       showToast(`${partnerNameLbl.textContent} connected 💕`);
+      unlockAudioPlayback();
     } else if (state === 'failed') {
       setStatus('disconnected', 'Connection failed');
     }
@@ -502,6 +604,33 @@ function loadYouTubeVideo() {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    CHAT
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+let isDrawerOpen = false;
+let unreadCount  = 0;
+
+function toggleChatDrawer(open) {
+  const chatPanel = $('chatPanel');
+  const backdrop  = $('chatBackdrop');
+  const badge     = $('chatBadge');
+
+  if (open === undefined) open = !isDrawerOpen;
+  isDrawerOpen = open;
+
+  if (isDrawerOpen) {
+    chatPanel?.classList.add('drawer-open');
+    backdrop?.classList.add('active');
+    unreadCount = 0;
+    if (badge) {
+      badge.textContent = '0';
+      badge.classList.add('hidden');
+    }
+    if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
+    setTimeout(() => $('chatInput')?.focus(), 250);
+  } else {
+    chatPanel?.classList.remove('drawer-open');
+    backdrop?.classList.remove('active');
+  }
+}
+
 socket.on('chat-message', ({ message, username }) => {
   const isMe = username === MY_NAME;
   addChatBubble(message, username, isMe);
@@ -525,6 +654,17 @@ function addChatBubble(message, username, isMe) {
     </div>`;
   chatMessages.appendChild(div);
   chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  // On mobile: if partner sent a message, notify and update badge
+  if (!isMe && !isDrawerOpen) {
+    unreadCount++;
+    const badge = $('chatBadge');
+    if (badge) {
+      badge.textContent = unreadCount;
+      badge.classList.remove('hidden');
+    }
+    showToast(`💬 ${username}: ${message.length > 25 ? message.substring(0, 25) + '…' : message}`);
+  }
 }
 
 function addSysMsg(text) {
@@ -623,6 +763,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Chat
   $('sendChatBtn')?.addEventListener('click', sendChat);
   chatInput?.addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
+
+  // Mobile Chat Drawer & FAB
+  $('mobileChatFab')?.addEventListener('click', () => toggleChatDrawer(true));
+  $('closeChatBtn')?.addEventListener('click', () => toggleChatDrawer(false));
+  $('chatBackdrop')?.addEventListener('click', () => toggleChatDrawer(false));
 
   // Mic / cam
   muteBtn?.addEventListener('click', toggleMute);
