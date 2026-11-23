@@ -49,11 +49,13 @@ if (myNameLbl)  myNameLbl.textContent  = MY_NAME;
 // ── Socket.IO ────────────────────────────────────────────────────
 const socket = io();
 
-// ── ICE servers (STUN + OpenRelay TURN for strict mobile 4G/5G carriers) ───
+// ── ICE servers (STUN + Multi-Port TURN Relays) ──────────────────
 const ICE_CONFIG = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
     { urls: 'stun:openrelay.metered.ca:80' },
     {
       urls: 'turn:openrelay.metered.ca:80',
@@ -66,7 +68,17 @@ const ICE_CONFIG = {
       credential: 'openrelayproject'
     },
     {
+      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    },
+    {
       urls: 'turns:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    },
+    {
+      urls: 'turns:openrelay.metered.ca:5349?transport=tcp',
       username: 'openrelayproject',
       credential: 'openrelayproject'
     }
@@ -74,7 +86,18 @@ const ICE_CONFIG = {
   iceCandidatePoolSize: 10
 };
 
-let iceCandidateQueue = [];
+let iceCandidateQueue   = [];
+let connectionWatchdog  = null;
+
+function scheduleWatchdog() {
+  if (connectionWatchdog) clearTimeout(connectionWatchdog);
+  connectionWatchdog = setTimeout(() => {
+    if (partnerId && (!peerConnection || peerConnection.connectionState !== 'connected')) {
+      console.log('[WebRTC] Watchdog auto-initiating call retry for partner:', partnerId);
+      initiateCall(partnerId, true);
+    }
+  }, 4000);
+}
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    MEDIA — get camera + mic
@@ -269,22 +292,19 @@ function createPeerConnection() {
     const state = peerConnection.connectionState;
     console.log('[WebRTC] Connection state:', state);
     if (state === 'connected') {
+      if (connectionWatchdog) clearTimeout(connectionWatchdog);
       setStatus('connected', `${partnerNameLbl.textContent} connected 💕`);
       showToast(`${partnerNameLbl.textContent} connected 💕`);
       unlockAudioPlayback();
     } else if (state === 'connecting') {
       setStatus('waiting', `Connecting to ${partnerNameLbl.textContent}…`);
+      scheduleWatchdog();
     } else if (state === 'failed') {
       setStatus('disconnected', 'Connection failed ⚠️ (Tap to retry)');
-      // Auto-retry once with ICE restart
-      setTimeout(() => {
-        if (peerConnection && peerConnection.connectionState === 'failed' && partnerId) {
-          console.log('[WebRTC] Retrying failed connection...');
-          initiateCall(partnerId, true);
-        }
-      }, 2500);
+      scheduleWatchdog();
     } else if (state === 'disconnected') {
-      setStatus('disconnected', 'Reconnecting…');
+      setStatus('disconnected', 'Reconnecting… 🔄 (Tap to retry)');
+      scheduleWatchdog();
     }
   };
 
@@ -292,6 +312,7 @@ function createPeerConnection() {
     console.log('[WebRTC] ICE state:', peerConnection.iceConnectionState);
     if (peerConnection.iceConnectionState === 'failed') {
       peerConnection.restartIce?.();
+      scheduleWatchdog();
     }
   };
 
@@ -314,6 +335,7 @@ async function initiateCall(targetUserId, isRestart = false) {
     await pc.setLocalDescription(offer);
     socket.emit('offer', { offer, to: targetUserId });
     console.log('[WebRTC] Offer sent to', targetUserId);
+    scheduleWatchdog();
   } catch (err) {
     console.error('[WebRTC] Error creating offer:', err);
   }
@@ -330,6 +352,14 @@ socket.on('room-info', ({ userCount, movieState, otherUsers }) => {
   if (otherUsers.length > 0) {
     partnerId = otherUsers[0];
     setStatus('waiting', 'Connecting to partner…');
+    // If partner is already present, try to initiate connection after short delay
+    setTimeout(() => {
+      if (partnerId && (!peerConnection || peerConnection.connectionState !== 'connected')) {
+        console.log('[WebRTC] Initiating handshake with existing peer:', partnerId);
+        initiateCall(partnerId);
+      }
+    }, 1200);
+    scheduleWatchdog();
   } else {
     setStatus('waiting', 'Waiting for partner…');
   }
@@ -368,6 +398,7 @@ socket.on('user-joined', async ({ userId, username }) => {
 
   // Initiate WebRTC call to the joining user
   await initiateCall(userId);
+  scheduleWatchdog();
 });
 
 // We received a WebRTC offer (we are the joiner — send answer)
