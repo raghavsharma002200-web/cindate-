@@ -48,6 +48,17 @@
         <div id="youtube-player"></div>
       </div>
 
+      <!-- Playback control bar (synced for both) -->
+      <div class="playback-bar" id="playbackBar">
+        <button id="btnRewind" class="playback-btn" title="Rewind 10 seconds">⏪ -10s</button>
+        <button id="btnPlayPause" class="playback-btn playpause-btn" title="Play or Pause for both">
+          <span id="playPauseIcon">⏯</span>
+          <span id="playPauseText">Play / Pause</span>
+        </button>
+        <button id="btnForward" class="playback-btn" title="Forward 10 seconds">⏩ +10s</button>
+        <button id="btnSync" class="playback-btn sync-btn" title="Sync with partner">🔄 Sync</button>
+      </div>
+
       <!-- URL input controls -->
       <div class="movie-controls">
         <label for="youtubeUrl" class="sr-only">YouTube URL</label>

@@ -10,15 +10,16 @@ const ROOM_ID = (params.get('room') || 'UNKNOWN').toUpperCase();
 const MY_NAME = decodeURIComponent(params.get('name') || 'You');
 
 // ── State ────────────────────────────────────────────────────────
-let localStream    = null;
-let peerConnection = null;
-let partnerId      = null;
-let ytPlayer       = null;
-let ytReady        = false;
-let isFromServer   = false;   // flag to prevent sync loops
-let isMuted        = false;
-let isCamOff       = false;
-let lastYtState    = -1;
+let localStream         = null;
+let peerConnection      = null;
+let partnerId           = null;
+let ytPlayer            = null;
+let ytReady             = false;
+let isMuted             = false;
+let isCamOff            = false;
+let currentPlayingState = false;
+let ignoreEventsUntil   = 0;
+let lastYtState         = -1;
 
 // ── DOM refs ─────────────────────────────────────────────────────
 const $  = id => document.getElementById(id);
@@ -145,10 +146,14 @@ socket.on('room-info', ({ userCount, movieState, otherUsers }) => {
   if (movieState && movieState.videoId) {
     const trySync = () => {
       if (ytReady && ytPlayer) {
-        isFromServer = true;
+        ignoreEventsUntil = Date.now() + 2500;
         ytPlayer.loadVideoById(movieState.videoId, movieState.time || 0);
-        if (!movieState.playing) setTimeout(() => ytPlayer.pauseVideo(), 800);
-        setTimeout(() => { isFromServer = false; }, 1500);
+        currentPlayingState = !!movieState.playing;
+        updatePlayPauseBtn(currentPlayingState);
+        $('moviePlaceholder')?.classList.add('hidden');
+        if (!movieState.playing) {
+          setTimeout(() => { if (ytPlayer.pauseVideo) ytPlayer.pauseVideo(); }, 800);
+        }
       } else {
         setTimeout(trySync, 500);
       }
@@ -242,36 +247,68 @@ socket.on('user-left', ({ userId }) => {
    MOVIE SYNC
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 socket.on('movie-sync', ({ action, time, videoId }) => {
-  console.log('[Sync] Received:', action, time, videoId);
+  console.log('[Sync] Received from partner:', action, time, videoId);
   if (!ytPlayer || !ytReady) return;
 
-  isFromServer = true;
+  // Temporarily ignore state events caused by this server update
+  ignoreEventsUntil = Date.now() + 1400;
 
   try {
     if (action === 'load' && videoId) {
-      ytPlayer.loadVideoById(videoId);
+      ignoreEventsUntil = Date.now() + 2500;
+      ytPlayer.loadVideoById(videoId, time || 0);
+      currentPlayingState = true;
+      updatePlayPauseBtn(true);
       $('moviePlaceholder')?.classList.add('hidden');
+      showToast('Partner loaded a movie! 🎬');
 
     } else if (action === 'play') {
-      // Correct drift if more than 1 second off
-      if (time !== undefined && Math.abs(ytPlayer.getCurrentTime() - time) > 1) {
+      currentPlayingState = true;
+      updatePlayPauseBtn(true);
+
+      const myTime = (ytPlayer.getCurrentTime && typeof ytPlayer.getCurrentTime === 'function')
+        ? ytPlayer.getCurrentTime()
+        : 0;
+
+      // Only seek if noticeably out of sync (> 1.5 seconds)
+      if (time !== undefined && Math.abs(myTime - time) > 1.5) {
         ytPlayer.seekTo(time, true);
       }
       ytPlayer.playVideo();
 
     } else if (action === 'pause') {
-      if (time !== undefined) ytPlayer.seekTo(time, true);
+      currentPlayingState = false;
+      updatePlayPauseBtn(false);
+
+      // Crucial: ALWAYS pause immediately
       ytPlayer.pauseVideo();
 
+      // Only seek if drift is large (> 1.5s), and re-ensure pause for mobile
+      const myTime = (ytPlayer.getCurrentTime && typeof ytPlayer.getCurrentTime === 'function')
+        ? ytPlayer.getCurrentTime()
+        : 0;
+
+      if (time !== undefined && Math.abs(myTime - time) > 1.5) {
+        ytPlayer.seekTo(time, true);
+        // On mobile browsers, seekTo might trigger playback; force pause right after
+        setTimeout(() => {
+          if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+        }, 150);
+      }
+
     } else if (action === 'seek') {
-      ytPlayer.seekTo(time, true);
+      if (time !== undefined) {
+        ytPlayer.seekTo(time, true);
+        if (!currentPlayingState) {
+          setTimeout(() => {
+            if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+          }, 150);
+        }
+      }
     }
   } catch (err) {
     console.error('[Sync] Error applying sync:', err);
   }
-
-  // Reset flag after a short delay (longer for load)
-  setTimeout(() => { isFromServer = false; }, action === 'load' ? 2000 : 600);
 });
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -307,22 +344,38 @@ function onYtReady() {
 }
 
 function onYtStateChange(event) {
-  if (isFromServer) return; // Don't echo server-triggered events
-
-  const time  = ytPlayer.getCurrentTime();
   const state = event.data;
 
-  // Avoid re-emitting the same state
-  if (state === lastYtState) return;
-  lastYtState = state;
+  // Ignore events while executing a server sync command
+  if (Date.now() < ignoreEventsUntil) {
+    if (state === YT.PlayerState.PLAYING) currentPlayingState = true;
+    if (state === YT.PlayerState.PAUSED)  currentPlayingState = false;
+    updatePlayPauseBtn(currentPlayingState);
+    return;
+  }
+
+  // Ignore buffering (-1, 3, 5) — not user actions
+  if (state === YT.PlayerState.BUFFERING || state === -1 || state === 5) {
+    return;
+  }
+
+  const time = (ytPlayer.getCurrentTime && typeof ytPlayer.getCurrentTime === 'function')
+    ? ytPlayer.getCurrentTime()
+    : 0;
 
   if (state === YT.PlayerState.PLAYING) {
-    console.log('[YT] Playing at', time.toFixed(1));
+    if (currentPlayingState === true) return; // already in playing state
+    currentPlayingState = true;
+    updatePlayPauseBtn(true);
+    console.log('[YT] User clicked PLAY at', time.toFixed(1));
     socket.emit('movie-action', { action: 'play', time });
     $('moviePlaceholder')?.classList.add('hidden');
 
   } else if (state === YT.PlayerState.PAUSED) {
-    console.log('[YT] Paused at', time.toFixed(1));
+    if (currentPlayingState === false) return; // already in paused state
+    currentPlayingState = false;
+    updatePlayPauseBtn(false);
+    console.log('[YT] User clicked PAUSE at', time.toFixed(1));
     socket.emit('movie-action', { action: 'pause', time });
   }
 }
@@ -330,6 +383,72 @@ function onYtStateChange(event) {
 function onYtError(event) {
   console.error('[YT] Player error:', event.data);
   showToast('Could not load video — try another URL ❌');
+}
+
+// ── Synced Button Controls ─────────────────────────────────────────
+function updatePlayPauseBtn(isPlaying) {
+  const icon = $('playPauseIcon');
+  const text = $('playPauseText');
+  if (icon) icon.textContent = isPlaying ? '⏸' : '▶';
+  if (text) text.textContent = isPlaying ? 'Pause for both' : 'Play for both';
+}
+
+function togglePlayPause() {
+  if (!ytPlayer || !ytReady) {
+    showToast('Load a movie first! 🎬');
+    return;
+  }
+
+  const myTime = (ytPlayer.getCurrentTime && typeof ytPlayer.getCurrentTime === 'function')
+    ? ytPlayer.getCurrentTime()
+    : 0;
+
+  if (currentPlayingState) {
+    // Currently playing -> pause for both
+    currentPlayingState = false;
+    ignoreEventsUntil = Date.now() + 1200;
+    ytPlayer.pauseVideo();
+    updatePlayPauseBtn(false);
+    socket.emit('movie-action', { action: 'pause', time: myTime });
+    showToast('Paused for both ⏸');
+  } else {
+    // Currently paused -> play for both
+    currentPlayingState = true;
+    ignoreEventsUntil = Date.now() + 1200;
+    ytPlayer.playVideo();
+    updatePlayPauseBtn(true);
+    socket.emit('movie-action', { action: 'play', time: myTime });
+    showToast('Playing for both ▶');
+  }
+}
+
+function seekDelta(seconds) {
+  if (!ytPlayer || !ytReady) return;
+  const myTime = (ytPlayer.getCurrentTime && typeof ytPlayer.getCurrentTime === 'function')
+    ? ytPlayer.getCurrentTime()
+    : 0;
+  const target = Math.max(0, myTime + seconds);
+  ignoreEventsUntil = Date.now() + 1200;
+  ytPlayer.seekTo(target, true);
+  if (!currentPlayingState) {
+    setTimeout(() => {
+      if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+    }, 150);
+  }
+  socket.emit('movie-action', { action: 'seek', time: target });
+  showToast(`${seconds > 0 ? '+10s ⏩' : '-10s ⏪'}`);
+}
+
+function forceSync() {
+  if (!ytPlayer || !ytReady) return;
+  const myTime = (ytPlayer.getCurrentTime && typeof ytPlayer.getCurrentTime === 'function')
+    ? ytPlayer.getCurrentTime()
+    : 0;
+  socket.emit('movie-action', {
+    action: currentPlayingState ? 'play' : 'pause',
+    time: myTime
+  });
+  showToast('Resynced with partner! 🔄');
 }
 
 // Extract YouTube video ID from various URL formats
@@ -370,7 +489,10 @@ function loadYouTubeVideo() {
     return;
   }
 
+  ignoreEventsUntil = Date.now() + 2500;
   ytPlayer.loadVideoById(videoId);
+  currentPlayingState = true;
+  updatePlayPauseBtn(true);
   socket.emit('movie-action', { action: 'load', videoId });
   if (urlInput) urlInput.value = '';
   $('moviePlaceholder')?.classList.add('hidden');
@@ -490,9 +612,13 @@ function esc(str) {
    EVENT LISTENERS
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 document.addEventListener('DOMContentLoaded', () => {
-  // Movie controls
+  // Movie controls & Synced Buttons
   loadMovieBtn?.addEventListener('click', loadYouTubeVideo);
   urlInput?.addEventListener('keydown', e => { if (e.key === 'Enter') loadYouTubeVideo(); });
+  $('btnPlayPause')?.addEventListener('click', togglePlayPause);
+  $('btnRewind')?.addEventListener('click', () => seekDelta(-10));
+  $('btnForward')?.addEventListener('click', () => seekDelta(10));
+  $('btnSync')?.addEventListener('click', forceSync);
 
   // Chat
   $('sendChatBtn')?.addEventListener('click', sendChat);
