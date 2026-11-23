@@ -49,14 +49,32 @@ if (myNameLbl)  myNameLbl.textContent  = MY_NAME;
 // ── Socket.IO ────────────────────────────────────────────────────
 const socket = io();
 
-// ── ICE servers (free public STUN) ───────────────────────────────
+// ── ICE servers (STUN + OpenRelay TURN for strict mobile 4G/5G carriers) ───
 const ICE_CONFIG = {
   iceServers: [
-    { urls: 'stun:stun.l.google.com:19302'  },
+    { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' }
-  ]
+    { urls: 'stun:openrelay.metered.ca:80' },
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    },
+    {
+      urls: 'turns:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    }
+  ],
+  iceCandidatePoolSize: 10
 };
+
+let iceCandidateQueue = [];
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    MEDIA — get camera + mic
@@ -96,6 +114,17 @@ async function startMedia() {
       t.enabled = true;
       console.log('[Media] Audio track active:', t.label);
     });
+
+    // If a peerConnection is already open, attach local tracks now
+    if (peerConnection) {
+      localStream.getTracks().forEach(track => {
+        const senders = peerConnection.getSenders();
+        if (!senders.some(s => s.track && s.track.kind === track.kind)) {
+          peerConnection.addTrack(track, localStream);
+          console.log('[WebRTC] Attached track to active connection:', track.kind);
+        }
+      });
+    }
 
     // Start speaking visualizer (cam circle glows when speaking)
     setupAudioIndicator(localStream);
@@ -165,45 +194,67 @@ document.addEventListener('click', unlockAudioPlayback, { passive: true });
 document.addEventListener('touchstart', unlockAudioPlayback, { passive: true });
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   WEBRTC — peer connection
+   WEBRTC — peer connection & candidate queue
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+async function drainCandidateQueue() {
+  if (!peerConnection || !peerConnection.remoteDescription || !peerConnection.remoteDescription.type) {
+    return;
+  }
+  console.log(`[WebRTC] Processing ${iceCandidateQueue.length} queued ICE candidates`);
+  while (iceCandidateQueue.length > 0) {
+    const candidate = iceCandidateQueue.shift();
+    try {
+      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    } catch (err) {
+      console.warn('[WebRTC] Error adding queued ICE candidate:', err);
+    }
+  }
+}
+
 function createPeerConnection() {
   // Clean up old connection
   if (peerConnection) {
-    peerConnection.close();
+    try { peerConnection.close(); } catch (e) {}
     peerConnection = null;
   }
 
+  iceCandidateQueue = [];
+  window.remoteMediaStream = new MediaStream();
   peerConnection = new RTCPeerConnection(ICE_CONFIG);
 
   // Add local media tracks to the connection
   if (localStream) {
     localStream.getTracks().forEach(track => {
       peerConnection.addTrack(track, localStream);
+      console.log('[WebRTC] Added local track to PC:', track.kind);
     });
   }
 
-  // Receive remote media tracks
+  // Receive remote media tracks (supports both event.streams and event.track)
   peerConnection.ontrack = (event) => {
     console.log('[WebRTC] Remote track received:', event.track.kind);
-    if (event.streams && event.streams[0]) {
-      const stream = event.streams[0];
-      remoteVideo.srcObject = stream;
-      remoteVideo.muted = false;
-      remoteVideo.volume = 1.0;
-      remoteVideo.play().catch(e => console.log('[WebRTC] video play:', e));
-
-      // Dedicated audio element (critical for Android Chrome)
-      const remoteAudio = $('remoteAudio');
-      if (remoteAudio) {
-        remoteAudio.srcObject = stream;
-        remoteAudio.muted = false;
-        remoteAudio.volume = 1.0;
-        remoteAudio.play().catch(e => console.log('[WebRTC] audio play waiting for gesture:', e));
-      }
-
-      partnerNoCam.classList.add('hidden');
+    let stream = (event.streams && event.streams[0]) ? event.streams[0] : null;
+    if (!stream) {
+      window.remoteMediaStream.addTrack(event.track);
+      stream = window.remoteMediaStream;
     }
+
+    remoteVideo.srcObject = stream;
+    remoteVideo.muted = false;
+    remoteVideo.volume = 1.0;
+    remoteVideo.play().catch(e => console.log('[WebRTC] video play:', e));
+
+    // Dedicated audio element (critical for Android Chrome)
+    const remoteAudio = $('remoteAudio');
+    if (remoteAudio) {
+      remoteAudio.srcObject = stream;
+      remoteAudio.muted = false;
+      remoteAudio.volume = 1.0;
+      remoteAudio.play().catch(e => console.log('[WebRTC] audio play:', e));
+    }
+
+    partnerNoCam.classList.add('hidden');
   };
 
   // Send ICE candidates to partner via server
@@ -221,12 +272,51 @@ function createPeerConnection() {
       setStatus('connected', `${partnerNameLbl.textContent} connected 💕`);
       showToast(`${partnerNameLbl.textContent} connected 💕`);
       unlockAudioPlayback();
+    } else if (state === 'connecting') {
+      setStatus('waiting', `Connecting to ${partnerNameLbl.textContent}…`);
     } else if (state === 'failed') {
-      setStatus('disconnected', 'Connection failed');
+      setStatus('disconnected', 'Connection failed ⚠️ (Tap to retry)');
+      // Auto-retry once with ICE restart
+      setTimeout(() => {
+        if (peerConnection && peerConnection.connectionState === 'failed' && partnerId) {
+          console.log('[WebRTC] Retrying failed connection...');
+          initiateCall(partnerId, true);
+        }
+      }, 2500);
+    } else if (state === 'disconnected') {
+      setStatus('disconnected', 'Reconnecting…');
+    }
+  };
+
+  peerConnection.oniceconnectionstatechange = () => {
+    console.log('[WebRTC] ICE state:', peerConnection.iceConnectionState);
+    if (peerConnection.iceConnectionState === 'failed') {
+      peerConnection.restartIce?.();
     }
   };
 
   return peerConnection;
+}
+
+// Unified call initiator (supports ICE restart)
+async function initiateCall(targetUserId, isRestart = false) {
+  if (!targetUserId) return;
+  console.log('[WebRTC] Initiating call to', targetUserId, 'restart:', isRestart);
+  partnerId = targetUserId;
+  const pc = createPeerConnection();
+
+  try {
+    const offer = await pc.createOffer({
+      offerToReceiveAudio: true,
+      offerToReceiveVideo: true,
+      iceRestart: isRestart
+    });
+    await pc.setLocalDescription(offer);
+    socket.emit('offer', { offer, to: targetUserId });
+    console.log('[WebRTC] Offer sent to', targetUserId);
+  } catch (err) {
+    console.error('[WebRTC] Error creating offer:', err);
+  }
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -238,7 +328,7 @@ socket.on('room-info', ({ userCount, movieState, otherUsers }) => {
   console.log(`[Room] Joined. Users: ${userCount}. Others: ${otherUsers.length}`);
 
   if (otherUsers.length > 0) {
-    // Partner is already in room — wait for them to send us an offer
+    partnerId = otherUsers[0];
     setStatus('waiting', 'Connecting to partner…');
   } else {
     setStatus('waiting', 'Waiting for partner…');
@@ -276,16 +366,8 @@ socket.on('user-joined', async ({ userId, username }) => {
   setStatus('waiting', `${partnerNameLbl.textContent} connecting…`);
   addSysMsg(`💕 ${partnerNameLbl.textContent} has joined!`);
 
-  // As the existing user, we initiate WebRTC
-  const pc = createPeerConnection();
-  try {
-    const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
-    await pc.setLocalDescription(offer);
-    socket.emit('offer', { offer, to: userId });
-    console.log('[WebRTC] Offer sent to', userId);
-  } catch (err) {
-    console.error('[WebRTC] Error creating offer:', err);
-  }
+  // Initiate WebRTC call to the joining user
+  await initiateCall(userId);
 });
 
 // We received a WebRTC offer (we are the joiner — send answer)
@@ -296,6 +378,8 @@ socket.on('offer', async ({ offer, from }) => {
   const pc = createPeerConnection();
   try {
     await pc.setRemoteDescription(new RTCSessionDescription(offer));
+    await drainCandidateQueue();
+
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
     socket.emit('answer', { answer, to: from });
@@ -311,18 +395,24 @@ socket.on('answer', async ({ answer }) => {
   try {
     if (peerConnection && peerConnection.signalingState !== 'stable') {
       await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+      await drainCandidateQueue();
+      console.log('[WebRTC] Remote answer set and queue drained');
     }
   } catch (err) {
     console.error('[WebRTC] Error handling answer:', err);
   }
 });
 
-// ICE candidate received
+// ICE candidate received (queued if remoteDescription not ready)
 socket.on('ice-candidate', async ({ candidate }) => {
+  if (!candidate) return;
+  if (!peerConnection || !peerConnection.remoteDescription || !peerConnection.remoteDescription.type) {
+    console.log('[WebRTC] Queuing ICE candidate (remoteDescription not ready)');
+    iceCandidateQueue.push(candidate);
+    return;
+  }
   try {
-    if (peerConnection && candidate) {
-      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-    }
+    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
   } catch (err) {
     console.error('[WebRTC] Error adding ICE candidate:', err);
   }
@@ -775,17 +865,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Copy room code
   $('copyRoomBtn')?.addEventListener('click', copyRoomCode);
+
+  // Reconnect on tapping status badge
+  $('connectionStatus')?.addEventListener('click', () => {
+    if (partnerId) {
+      showToast('Reconnecting call… 🔄');
+      initiateCall(partnerId, true);
+    } else {
+      showToast('Waiting for partner to join room first…');
+    }
+  });
 });
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    BOOT
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-// Join the room on the server
-socket.emit('join-room', { roomId: ROOM_ID, username: MY_NAME });
-
-// Start camera
-startMedia();
+// Start camera first, then announce join so tracks are ready for handshake
+startMedia().finally(() => {
+  socket.emit('join-room', { roomId: ROOM_ID, username: MY_NAME });
+});
 
 // Welcome message in chat
 setTimeout(() => {
