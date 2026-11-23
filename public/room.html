@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CineDate 💕 — Room</title>
+  <meta name="description" content="Your private CineDate movie room — watch together, face to face.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/room.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ── Header ──────────────────────────────────────────── -->
+  <header class="header" role="banner">
+    <span class="header-logo">💕 CineDate</span>
+
+    <div class="header-divider" aria-hidden="true"></div>
+
+    <div class="room-code-wrap">
+      <span class="room-label">Room</span>
+      <span id="roomCode" class="room-code">------</span>
+      <button id="copyRoomBtn" class="icon-btn" title="Copy room code" aria-label="Copy room code">📋</button>
+    </div>
+
+    <div id="connectionStatus" class="status-badge" aria-live="polite">
+      <span class="status-dot waiting"></span>
+      <span id="statusText">Waiting for partner…</span>
+    </div>
+  </header>
+
+  <!-- ── Main layout ─────────────────────────────────────── -->
+  <div class="main">
+
+    <!-- Left: Movie area -->
+    <section class="movie-area" aria-label="Movie player">
+
+      <!-- YouTube player container -->
+      <div class="movie-screen" id="movieScreen">
+        <div class="movie-placeholder" id="moviePlaceholder">
+          <span class="placeholder-icon">🎬</span>
+          <p>Paste a YouTube link below to start the movie</p>
+        </div>
+        <!-- YouTube IFrame API will replace this div -->
+        <div id="youtube-player"></div>
+      </div>
+
+      <!-- URL input controls -->
+      <div class="movie-controls">
+        <label for="youtubeUrl" class="sr-only">YouTube URL</label>
+        <input
+          type="url"
+          id="youtubeUrl"
+          class="url-input"
+          placeholder="🔗  Paste YouTube URL or video ID…"
+          inputmode="url"
+          autocomplete="off"
+        >
+        <button id="loadMovieBtn" class="btn-load">▶ Load Movie</button>
+      </div>
+
+    </section>
+
+    <!-- Right: Side panel (cams + chat) -->
+    <aside class="side-panel" aria-label="Partner and chat">
+
+      <!-- Face cam circles -->
+      <div class="cams-section">
+
+        <!-- Your cam -->
+        <div class="cam-wrap">
+          <div class="cam-circle" id="myCamCircle">
+            <video id="localVideo" autoplay muted playsinline></video>
+            <div class="cam-no-video" id="myNoCam">
+              <span>😶</span>
+              <span>No cam</span>
+            </div>
+          </div>
+          <span class="cam-label-text" id="myNameLabel">You</span>
+        </div>
+
+        <!-- Partner cam -->
+        <div class="cam-wrap">
+          <div class="cam-circle partner" id="partnerCamCircle">
+            <video id="remoteVideo" autoplay playsinline></video>
+            <div class="cam-no-video" id="partnerNoCam">
+              <span>💕</span>
+              <span>Waiting…</span>
+            </div>
+          </div>
+          <span class="cam-label-text" id="partnerNameLabel">Partner</span>
+        </div>
+
+      </div>
+
+      <!-- Mic / Cam toggles -->
+      <div class="cam-toolbar">
+        <button id="muteBtn" class="ctrl-btn" title="Toggle microphone" aria-pressed="false">
+          🎤 <span id="muteBtnLabel">Mute</span>
+        </button>
+        <button id="camBtn" class="ctrl-btn" title="Toggle camera" aria-pressed="false">
+          📸 <span id="camBtnLabel">Cam off</span>
+        </button>
+      </div>
+
+      <!-- Chat panel -->
+      <div class="chat-panel">
+        <div class="chat-header">
+          <span>💬 Chat</span>
+        </div>
+
+        <div id="chatMessages" class="chat-messages" role="log" aria-live="polite" aria-label="Chat messages">
+          <!-- Messages injected by JS -->
+        </div>
+
+        <div class="chat-input-row">
+          <label for="chatInput" class="sr-only">Chat message</label>
+          <input
+            type="text"
+            id="chatInput"
+            placeholder="Say something sweet… 💕"
+            maxlength="200"
+            autocomplete="off"
+          >
+          <button id="sendChatBtn" class="btn-send">Send</button>
+        </div>
+      </div>
+
+    </aside>
+  </div><!-- /.main -->
+
+</div><!-- /.app -->
+
+<!-- Hidden utility -->
+<div class="sr-only" aria-live="assertive" id="a11yAnnounce"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/room.js"></script>
+<script src="https://www.youtube.com/iframe_api"></script>
+</body>
+</html>
+
+<style>
+  /* Utility only used in room.html */
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    border: 0;
+  }
+</style>

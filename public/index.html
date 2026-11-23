@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CineDate 💕 — Watch Together, Love Together</title>
+  <meta name="description" content="A romantic movie date app for long-distance couples. Watch YouTube movies together with live video chat — works on phone and laptop.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/index.css">
+</head>
+<body>
+
+  <!-- Animated starfield -->
+  <canvas id="starfield"></canvas>
+
+  <!-- Floating hearts container -->
+  <div class="hearts-container" id="heartsContainer" aria-hidden="true"></div>
+
+  <main class="container">
+    <!-- Hero section -->
+    <header class="hero">
+      <div class="logo" aria-label="Love heart icon">💕</div>
+      <h1>CineDate</h1>
+      <p class="tagline">Movie nights, together — no matter the distance</p>
+    </header>
+
+    <!-- Action cards -->
+    <div class="cards">
+      <!-- Create room -->
+      <div class="card create-card">
+        <div class="card-icon">🎬</div>
+        <h2>Start a Date Night</h2>
+        <p>Create a private room and share the code with your partner</p>
+
+        <div class="form-group">
+          <label for="createName" class="sr-only">Your name</label>
+          <input
+            type="text"
+            id="createName"
+            placeholder="Your name (e.g. Raghav)"
+            maxlength="20"
+            autocomplete="nickname"
+          >
+        </div>
+
+        <button class="btn btn-primary" id="createBtn">
+          <span>✨</span>
+          <span>Create Room</span>
+        </button>
+      </div>
+
+      <!-- Join room -->
+      <div class="card join-card">
+        <div class="card-icon">🌹</div>
+        <h2>Join Date Night</h2>
+        <p>Enter the 6-letter room code your partner shared with you</p>
+
+        <div class="form-group">
+          <label for="joinName" class="sr-only">Your name</label>
+          <input
+            type="text"
+            id="joinName"
+            placeholder="Your name (e.g. Priya)"
+            maxlength="20"
+            autocomplete="nickname"
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="roomCode" class="sr-only">Room code</label>
+          <input
+            type="text"
+            id="roomCode"
+            placeholder="Room code (e.g. ABC123)"
+            maxlength="6"
+            class="code-input"
+            autocomplete="off"
+            autocapitalize="characters"
+          >
+        </div>
+
+        <button class="btn btn-secondary" id="joinBtn">
+          <span>💕</span>
+          <span>Join Room</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Error message -->
+    <div id="errorMsg" class="error-msg" role="alert" aria-live="polite"></div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>Made with 💕 for couples everywhere — works on phone &amp; laptop</p>
+    </footer>
+  </main>
+
+  <script src="/js/index.js"></script>
+</body>
+</html>
