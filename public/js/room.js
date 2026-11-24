@@ -914,6 +914,9 @@ document.addEventListener('DOMContentLoaded', () => {
   $('btnTheater')?.addEventListener('click', () => toggleTheaterMode());
   $('exitTheaterBtn')?.addEventListener('click', () => toggleTheaterMode(false));
 
+  // Leave room button in header corner
+  $('leaveRoomBtn')?.addEventListener('click', leaveRoom);
+
   // Reconnect on tapping status badge
   $('connectionStatus')?.addEventListener('click', () => {
     if (partnerId) {
@@ -984,6 +987,31 @@ document.addEventListener('webkitfullscreenchange', () => {
     }
   }
 });
+
+/* ── Leave Room ────────────────────────────────────────────────── */
+function leaveRoom() {
+  if (confirm('Are you sure you want to leave this date room? 💕')) {
+    // Stop local camera and microphone hardware tracks
+    if (localStream) {
+      localStream.getTracks().forEach(track => {
+        try { track.stop(); } catch (e) {}
+      });
+    }
+
+    // Cleanly close WebRTC peer connection
+    if (peerConnection) {
+      try { peerConnection.close(); } catch (e) {}
+    }
+
+    // Disconnect socket
+    if (socket) {
+      try { socket.disconnect(); } catch (e) {}
+    }
+
+    // Return to app lobby
+    window.location.href = '/app';
+  }
+}
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    BOOT
