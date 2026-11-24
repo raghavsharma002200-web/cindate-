@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>CineDate 💕 — Room</title>
   <meta name="description" content="Your private CineDate movie room — watch together, face to face.">
+  <meta name="theme-color" content="#ff6b9d">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="CineDate">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <link rel="manifest" href="/manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -13,6 +21,9 @@
 <body>
 
 <div class="app">
+
+  <!-- Floating Exit Fullscreen Theater button -->
+  <button id="exitTheaterBtn" class="exit-theater-btn" title="Exit Fullscreen Mode">✕ Exit Fullscreen</button>
 
   <!-- ── Header ──────────────────────────────────────────── -->
   <header class="header" role="banner">
@@ -57,6 +68,10 @@
         </button>
         <button id="btnForward" class="playback-btn" title="Forward 10 seconds">⏩ +10s</button>
         <button id="btnSync" class="playback-btn sync-btn" title="Sync with partner">🔄 Sync</button>
+        <button id="btnTheater" class="playback-btn theater-btn" title="Watch full screen with partner cams">
+          <span id="theaterIcon">⛶</span>
+          <span id="theaterText">Couple Fullscreen</span>
+        </button>
       </div>
 
       <!-- URL input controls -->

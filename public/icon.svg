@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff6b9d"/>
+      <stop offset="100%" stop-color="#c77dff"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="15" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="120" fill="#0d0a1a"/>
+  <!-- Clapperboard / Film & Heart -->
+  <path d="M256 120 C180 30, 60 120, 160 250 L256 370 L352 250 C452 120, 332 30, 256 120 Z" fill="url(#grad)" filter="url(#glow)"/>
+  <circle cx="210" cy="200" r="18" fill="#ffffff" opacity="0.9"/>
+  <circle cx="302" cy="200" r="18" fill="#ffffff" opacity="0.9"/>
+  <!-- Play triangle in heart -->
+  <polygon points="240,240 240,290 285,265" fill="#ffffff"/>
+</svg>

@@ -910,6 +910,10 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('Enjoy your date night 💕🍿');
   });
 
+  // Couple Fullscreen Theater button
+  $('btnTheater')?.addEventListener('click', () => toggleTheaterMode());
+  $('exitTheaterBtn')?.addEventListener('click', () => toggleTheaterMode(false));
+
   // Reconnect on tapping status badge
   $('connectionStatus')?.addEventListener('click', () => {
     if (partnerId) {
@@ -919,6 +923,66 @@ document.addEventListener('DOMContentLoaded', () => {
       showToast('Waiting for partner to join room first…');
     }
   });
+});
+
+/* ── Couple Fullscreen Theater Mode ────────────────────────────── */
+function toggleTheaterMode(force) {
+  const app = document.querySelector('.app');
+  if (!app) return;
+  const isTheater = force !== undefined ? force : !app.classList.contains('theater-mode');
+
+  if (isTheater) {
+    app.classList.add('theater-mode');
+    const theaterText = $('theaterText');
+    const theaterIcon = $('theaterIcon');
+    if (theaterText) theaterText.textContent = 'Exit Fullscreen';
+    if (theaterIcon) theaterIcon.textContent = '✕';
+
+    // Request browser fullscreen if available
+    try {
+      if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else if (document.documentElement.webkitRequestFullscreen && !document.webkitFullscreenElement) {
+        document.documentElement.webkitRequestFullscreen().catch(() => {});
+      }
+    } catch (e) {}
+
+    showToast('Entered Couple Fullscreen 🎬💕');
+  } else {
+    app.classList.remove('theater-mode');
+    const theaterText = $('theaterText');
+    const theaterIcon = $('theaterIcon');
+    if (theaterText) theaterText.textContent = 'Couple Fullscreen';
+    if (theaterIcon) theaterIcon.textContent = '⛶';
+
+    try {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      } else if (document.webkitFullscreenElement && document.webkitExitFullscreen) {
+        document.webkitExitFullscreen().catch(() => {});
+      }
+    } catch (e) {}
+
+    showToast('Exited Fullscreen');
+  }
+}
+
+// Fullscreen change listener to sync state if user presses Esc
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement) {
+    const app = document.querySelector('.app');
+    if (app && app.classList.contains('theater-mode')) {
+      toggleTheaterMode(false);
+    }
+  }
+});
+document.addEventListener('webkitfullscreenchange', () => {
+  if (!document.webkitFullscreenElement) {
+    const app = document.querySelector('.app');
+    if (app && app.classList.contains('theater-mode')) {
+      toggleTheaterMode(false);
+    }
+  }
 });
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

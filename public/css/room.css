@@ -177,7 +177,7 @@ body::after {
   min-width: 0;
 }
 
-/* Movie screen (the player wrapper) */
+/* Movie screen (the player wrapper - neat & compact) */
 .movie-screen {
   flex: 1;
   position: relative;
@@ -187,6 +187,7 @@ body::after {
   border: 1px solid rgba(255,107,157,0.12);
   box-shadow: 0 4px 32px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.03);
   min-height: 0;
+  max-height: 58vh;
 }
 
 .movie-placeholder {
@@ -277,6 +278,16 @@ body::after {
 .sync-btn {
   color: var(--accent2);
   border-color: rgba(199,125,255,0.3);
+}
+
+.theater-btn {
+  color: #ff9ebb;
+  border-color: rgba(255, 158, 187, 0.4);
+  background: rgba(255, 107, 157, 0.12);
+}
+.theater-btn:hover {
+  background: rgba(255, 107, 157, 0.25);
+  box-shadow: 0 4px 18px rgba(255, 107, 157, 0.3);
 }
 
 /* Controls bar */
@@ -808,6 +819,132 @@ body::after {
 }
 
 /* ══════════════════════════════════════════════════════════
+   COUPLE FULLSCREEN THEATER MODE (Movie + Floating Cams)
+   ══════════════════════════════════════════════════════════ */
+.exit-theater-btn {
+  display: none;
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 1000;
+  background: rgba(14, 10, 28, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #fff;
+  border: 1px solid rgba(255, 107, 157, 0.5);
+  padding: 8px 18px;
+  border-radius: 30px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 25px rgba(0, 0, 0, 0.7);
+  transition: all 0.2s ease;
+  letter-spacing: 0.5px;
+}
+.exit-theater-btn:hover {
+  background: linear-gradient(135deg, rgba(255,107,157,0.3), rgba(199,125,255,0.3));
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(255, 107, 157, 0.4);
+}
+
+.app.theater-mode .exit-theater-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Screen expands to 100% viewport */
+.app.theater-mode .movie-screen {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  z-index: 400 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+}
+
+/* Floating Picture-in-Picture Face Cams in Theater Mode */
+.app.theater-mode .cams-section {
+  position: fixed !important;
+  top: 70px !important;
+  right: 18px !important;
+  z-index: 900 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 12px !important;
+  background: rgba(12, 8, 24, 0.72) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  padding: 12px !important;
+  border-radius: 30px !important;
+  border: 1.5px solid rgba(255, 107, 157, 0.35) !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.75) !important;
+  pointer-events: auto !important;
+  transition: all 0.3s ease !important;
+}
+
+.app.theater-mode .cams-section .cam-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.app.theater-mode .cam-circle {
+  width: 76px !important;
+  height: 76px !important;
+  border-width: 2px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6) !important;
+}
+
+.app.theater-mode .cam-label-text {
+  font-size: 0.68rem !important;
+  font-weight: 600 !important;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.8);
+}
+
+/* Cam toolbar floats below the cams in theater mode */
+.app.theater-mode .cam-toolbar {
+  position: fixed !important;
+  top: 275px !important;
+  right: 18px !important;
+  z-index: 900 !important;
+  background: rgba(12, 8, 24, 0.72) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  padding: 6px 10px !important;
+  border-radius: 20px !important;
+  border: 1px solid rgba(255, 107, 157, 0.25) !important;
+  box-shadow: 0 6px 25px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Floating movie playback bar at bottom center */
+.app.theater-mode .playback-bar {
+  position: fixed !important;
+  bottom: 24px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 900 !important;
+  background: rgba(12, 8, 24, 0.85) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  padding: 8px 18px !important;
+  border-radius: 40px !important;
+  border: 1px solid rgba(255, 107, 157, 0.35) !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.85) !important;
+  max-width: 92vw !important;
+}
+
+.app.theater-mode .movie-controls {
+  display: none !important; /* Hide URL input box during movie watching */
+}
+
+/* ══════════════════════════════════════════════════════════
    MOBILE OVERRIDES  (≤ 768px — phone portrait)
    ══════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
@@ -928,6 +1065,41 @@ body::after {
   /* Show floating chat button on mobile */
   .mobile-chat-fab {
     display: flex;
+  }
+
+  /* Theater mode overrides on mobile */
+  .app.theater-mode .cams-section {
+    top: 55px !important;
+    right: 10px !important;
+    padding: 8px 10px !important;
+    gap: 8px !important;
+    border-radius: 24px !important;
+  }
+  .app.theater-mode .cam-circle {
+    width: 62px !important;
+    height: 62px !important;
+  }
+  .app.theater-mode .cam-toolbar {
+    top: 225px !important;
+    right: 10px !important;
+    padding: 4px 8px !important;
+    gap: 6px !important;
+  }
+  .app.theater-mode .cam-toolbar .ctrl-btn {
+    padding: 4px 8px !important;
+    font-size: 0.68rem !important;
+  }
+  .app.theater-mode .playback-bar {
+    bottom: 16px !important;
+    padding: 6px 10px !important;
+    gap: 4px !important;
+  }
+  .app.theater-mode .playback-btn {
+    padding: 5px 8px !important;
+    font-size: 0.72rem !important;
+  }
+  .app.theater-mode .mobile-chat-fab {
+    display: none !important;
   }
 }
 
