@@ -28,7 +28,7 @@ app.get('/room/:id', (req, res) => {
 // Auth config endpoint (Google OAuth Client ID)
 app.get('/api/auth-config', (req, res) => {
   res.json({
-    googleClientId: process.env.GOOGLE_CLIENT_ID || ''
+    googleClientId: process.env.GOOGLE_CLIENT_ID || '640464867255-tolbo4ld0gl6fc8ermjasbnbhnm649uh.apps.googleusercontent.com'
   });
 });
 

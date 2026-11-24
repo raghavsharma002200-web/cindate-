@@ -102,35 +102,45 @@ document.getElementById('googleSignOutBtn')?.addEventListener('click', () => {
   if (joinInput)   joinInput.value   = '';
 });
 
-// Fetch auth configuration to render official Google button if client ID is set
+// ── Google Sign In & GIS ─────────────────────────
+const GOOGLE_CLIENT_ID = '640464867255-tolbo4ld0gl6fc8ermjasbnbhnm649uh.apps.googleusercontent.com';
 const googleModal = document.getElementById('googleModal');
 const googleModalInput = document.getElementById('googleModalInput');
 
-fetch('/api/auth-config')
-  .then(res => res.json())
-  .then(data => {
-    if (data && data.googleClientId && window.google && google.accounts && google.accounts.id) {
-      try {
-        google.accounts.id.initialize({
-          client_id: data.googleClientId,
-          callback: window.handleGoogleCredentialResponse
+function initGoogleLobby() {
+  if (window.google && google.accounts && google.accounts.id) {
+    try {
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: window.handleGoogleCredentialResponse,
+        auto_select: false
+      });
+
+      const container = document.getElementById('googleBtnContainer');
+      if (container) {
+        google.accounts.id.renderButton(container, {
+          theme: 'filled_blue',
+          size: 'large',
+          shape: 'pill',
+          text: 'continue_with',
+          width: 280
         });
-        const container = document.getElementById('googleBtnContainer');
-        if (container) {
-          google.accounts.id.renderButton(container, {
-            theme: 'filled_blue',
-            size: 'large',
-            shape: 'pill',
-            text: 'continue_with',
-            width: 250
-          });
-        }
-      } catch (err) {
-        console.warn('Google GIS init:', err);
       }
+
+      if (!savedName) {
+        google.accounts.id.prompt();
+      }
+    } catch (err) {
+      console.warn('Google GIS init error:', err);
     }
-  })
-  .catch(err => console.warn('Auth config error:', err));
+  }
+}
+
+if (window.google) {
+  initGoogleLobby();
+} else {
+  window.addEventListener('load', () => setTimeout(initGoogleLobby, 400));
+}
 
 function openGoogleModal() {
   if (googleModal) {
@@ -185,16 +195,22 @@ googleModalInput?.addEventListener('keydown', (e) => {
 // Global Google credential response callback (for GIS client)
 window.handleGoogleCredentialResponse = function(response) {
   try {
-    const payload = JSON.parse(atob(response.credential.split('.')[1]));
+    const base64Url = response.credential.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    const payload = JSON.parse(jsonPayload);
     const name = payload.name || payload.given_name;
     const pic  = payload.picture;
     if (name) {
       localStorage.setItem('cinedate_user_name', name);
       if (pic) localStorage.setItem('cinedate_user_pic', pic);
       syncPrefilledName(name, pic);
+      closeGoogleModal();
     }
   } catch (err) {
-    console.error('Failed to parse Google credential:', err);
+    console.error('Google parse error:', err);
   }
 };
 

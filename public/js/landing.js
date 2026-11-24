@@ -58,6 +58,7 @@ setInterval(spawnHeart, 2000);
 spawnHeart();
 
 // ── Google Sign In & In-App Modal ──────────────
+const GOOGLE_CLIENT_ID = '640464867255-tolbo4ld0gl6fc8ermjasbnbhnm649uh.apps.googleusercontent.com';
 const savedName = localStorage.getItem('cinedate_user_name');
 const googleBtnText = document.getElementById('heroGoogleBtnText');
 const googleModal = document.getElementById('googleModal');
@@ -67,32 +68,55 @@ if (savedName && googleBtnText) {
   googleBtnText.textContent = `Hi, ${savedName} 💕`;
 }
 
-// Fetch auth configuration to render official Google button if client ID is set
-fetch('/api/auth-config')
-  .then(res => res.json())
-  .then(data => {
-    if (data && data.googleClientId && window.google && google.accounts && google.accounts.id) {
-      try {
-        google.accounts.id.initialize({
-          client_id: data.googleClientId,
-          callback: window.handleGoogleCredentialResponse
+function initGoogle() {
+  if (window.google && google.accounts && google.accounts.id) {
+    try {
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: window.handleGoogleCredentialResponse,
+        auto_select: false
+      });
+
+      // Render official Google button inside the hero section
+      const heroWrap = document.getElementById('heroGoogleBtnWrap');
+      if (heroWrap && !savedName) {
+        google.accounts.id.renderButton(heroWrap, {
+          theme: 'outline',
+          size: 'large',
+          shape: 'pill',
+          text: 'signin_with',
+          locale: 'en'
         });
-        const container = document.getElementById('googleBtnContainer');
-        if (container) {
-          google.accounts.id.renderButton(container, {
-            theme: 'filled_blue',
-            size: 'large',
-            shape: 'pill',
-            text: 'continue_with',
-            width: 250
-          });
-        }
-      } catch (err) {
-        console.warn('Google GIS init:', err);
       }
+
+      // Render official Google button inside the modal
+      const modalContainer = document.getElementById('googleBtnContainer');
+      if (modalContainer) {
+        google.accounts.id.renderButton(modalContainer, {
+          theme: 'filled_blue',
+          size: 'large',
+          shape: 'pill',
+          text: 'continue_with',
+          width: 280
+        });
+      }
+
+      // Trigger one-tap prompt for mobile devices
+      if (!savedName) {
+        google.accounts.id.prompt();
+      }
+    } catch (err) {
+      console.warn('Google GIS init error:', err);
     }
-  })
-  .catch(err => console.warn('Auth config fetch error:', err));
+  }
+}
+
+// Ensure GIS initializes smoothly
+if (window.google) {
+  initGoogle();
+} else {
+  window.addEventListener('load', () => setTimeout(initGoogle, 400));
+}
 
 function openGoogleModal() {
   if (googleModal) {
@@ -151,7 +175,12 @@ googleModalInput?.addEventListener('keydown', (e) => {
 // Global Google response handler for GIS
 window.handleGoogleCredentialResponse = function(response) {
   try {
-    const payload = JSON.parse(atob(response.credential.split('.')[1]));
+    const base64Url = response.credential.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    const payload = JSON.parse(jsonPayload);
     const name = payload.name || payload.given_name;
     const pic  = payload.picture;
     if (name) {
