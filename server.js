@@ -16,11 +16,38 @@ app.use(express.static(path.join(__dirname, 'public')));
 let cachedIceServers = null;
 let lastIceFetch = 0;
 
+const METERED_ICE_SERVERS = [
+  { urls: 'stun:stun.relay.metered.ca:80' },
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun.cloudflare.com:3478' },
+  {
+    urls: 'turn:global.relay.metered.ca:80',
+    username: '4cd75a09306f8020f3e74bf4',
+    credential: '3j3MnH80VvVMLupC'
+  },
+  {
+    urls: 'turn:global.relay.metered.ca:80?transport=tcp',
+    username: '4cd75a09306f8020f3e74bf4',
+    credential: '3j3MnH80VvVMLupC'
+  },
+  {
+    urls: 'turn:global.relay.metered.ca:443',
+    username: '4cd75a09306f8020f3e74bf4',
+    credential: '3j3MnH80VvVMLupC'
+  },
+  {
+    urls: 'turns:global.relay.metered.ca:443?transport=tcp',
+    username: '4cd75a09306f8020f3e74bf4',
+    credential: '3j3MnH80VvVMLupC'
+  }
+];
+
 app.get('/api/ice-servers', async (req, res) => {
   const apiKey = process.env.METERED_API_KEY;
-  const appName = process.env.METERED_APP_NAME;
+  const appName = process.env.METERED_APP_NAME || 'cindate';
 
-  if (apiKey && appName) {
+  if (apiKey) {
     if (cachedIceServers && Date.now() - lastIceFetch < 600000) {
       return res.json({ iceServers: cachedIceServers });
     }
@@ -37,20 +64,8 @@ app.get('/api/ice-servers', async (req, res) => {
     }
   }
 
-  // Fallback high-reliability multi-cloud STUN & TURN
-  res.json({
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-      { urls: 'stun:stun.cloudflare.com:3478' },
-      { urls: 'stun:openrelay.metered.ca:80' },
-      { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-      { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-      { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-      { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-      { urls: 'turns:openrelay.metered.ca:5349?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
-    ]
-  });
+  // Fallback to high-reliability Metered dedicated TURN servers
+  res.json({ iceServers: METERED_ICE_SERVERS });
 });
 
 // In-memory room state

@@ -50,38 +50,32 @@ if (myNameLbl)  myNameLbl.textContent  = MY_NAME;
 // ── Socket.IO ────────────────────────────────────────────────────
 const socket = io();
 
-// ── ICE servers (STUN + Multi-Port TURN Relays) ──────────────────
+// ── ICE servers (Metered Regional Enterprise TURN + STUN) ──────────
 const ICE_CONFIG = {
   iceServers: [
+    { urls: 'stun:stun.relay.metered.ca:80' },
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun.cloudflare.com:3478' },
-    { urls: 'stun:openrelay.metered.ca:80' },
     {
-      urls: 'turn:openrelay.metered.ca:80',
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
+      urls: 'turn:global.relay.metered.ca:80',
+      username: '4cd75a09306f8020f3e74bf4',
+      credential: '3j3MnH80VvVMLupC'
     },
     {
-      urls: 'turn:openrelay.metered.ca:443',
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
+      urls: 'turn:global.relay.metered.ca:80?transport=tcp',
+      username: '4cd75a09306f8020f3e74bf4',
+      credential: '3j3MnH80VvVMLupC'
     },
     {
-      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
+      urls: 'turn:global.relay.metered.ca:443',
+      username: '4cd75a09306f8020f3e74bf4',
+      credential: '3j3MnH80VvVMLupC'
     },
     {
-      urls: 'turns:openrelay.metered.ca:443?transport=tcp',
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
-    },
-    {
-      urls: 'turns:openrelay.metered.ca:5349?transport=tcp',
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
+      urls: 'turns:global.relay.metered.ca:443?transport=tcp',
+      username: '4cd75a09306f8020f3e74bf4',
+      credential: '3j3MnH80VvVMLupC'
     }
   ],
   iceCandidatePoolSize: 10
@@ -93,11 +87,11 @@ let connectionWatchdog  = null;
 function scheduleWatchdog() {
   if (connectionWatchdog) clearTimeout(connectionWatchdog);
   connectionWatchdog = setTimeout(() => {
-    if (partnerId && (!peerConnection || peerConnection.connectionState !== 'connected')) {
-      console.log('[WebRTC] Watchdog auto-initiating call retry for partner:', partnerId);
+    if (partnerId && peerConnection && (peerConnection.connectionState === 'failed' || peerConnection.iceConnectionState === 'failed')) {
+      console.log('[WebRTC] Watchdog retrying connection with ICE restart for partner:', partnerId);
       initiateCall(partnerId, true);
     }
-  }, 4000);
+  }, 8000);
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -264,7 +258,9 @@ function createPeerConnection() {
       stream = window.remoteMediaStream;
     }
 
-    remoteVideo.srcObject = stream;
+    if (remoteVideo.srcObject !== stream) {
+      remoteVideo.srcObject = stream;
+    }
     remoteVideo.muted = false;
     remoteVideo.volume = 1.0;
     remoteVideo.play().catch(e => console.log('[WebRTC] video play:', e));
@@ -272,7 +268,9 @@ function createPeerConnection() {
     // Dedicated audio element (critical for Android Chrome)
     const remoteAudio = $('remoteAudio');
     if (remoteAudio) {
-      remoteAudio.srcObject = stream;
+      if (remoteAudio.srcObject !== stream) {
+        remoteAudio.srcObject = stream;
+      }
       remoteAudio.muted = false;
       remoteAudio.volume = 1.0;
       remoteAudio.play().catch(e => console.log('[WebRTC] audio play:', e));
@@ -353,14 +351,14 @@ socket.on('room-info', ({ userCount, movieState, otherUsers }) => {
   if (otherUsers.length > 0) {
     partnerId = otherUsers[0];
     setStatus('waiting', 'Connecting to partner…');
-    // If partner is already present, try to initiate connection after short delay
+    // The existing user in room initiates the call on 'user-joined'.
+    // We only initiate as a safety fallback if no connection was attempted after 4s.
     setTimeout(() => {
-      if (partnerId && (!peerConnection || peerConnection.connectionState !== 'connected')) {
-        console.log('[WebRTC] Initiating handshake with existing peer:', partnerId);
+      if (partnerId && !peerConnection) {
+        console.log('[WebRTC] Fallback handshake initiator with peer:', partnerId);
         initiateCall(partnerId);
       }
-    }, 1200);
-    scheduleWatchdog();
+    }, 4000);
   } else {
     setStatus('waiting', 'Waiting for partner…');
   }
