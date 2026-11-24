@@ -102,31 +102,65 @@ document.getElementById('googleSignOutBtn')?.addEventListener('click', () => {
   if (joinInput)   joinInput.value   = '';
 });
 
-// Quick Google / Gmail sign in handler
-document.getElementById('quickGoogleBtn')?.addEventListener('click', () => {
-  // Try Google Identity One-Tap first if available
-  if (window.google && google.accounts && google.accounts.id) {
-    try {
-      google.accounts.id.prompt((notification) => {
-        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-          promptManualNameOrEmail();
+// Fetch auth configuration to render official Google button if client ID is set
+const googleModal = document.getElementById('googleModal');
+const googleModalInput = document.getElementById('googleModalInput');
+
+fetch('/api/auth-config')
+  .then(res => res.json())
+  .then(data => {
+    if (data && data.googleClientId && window.google && google.accounts && google.accounts.id) {
+      try {
+        google.accounts.id.initialize({
+          client_id: data.googleClientId,
+          callback: window.handleGoogleCredentialResponse
+        });
+        const container = document.getElementById('googleBtnContainer');
+        if (container) {
+          google.accounts.id.renderButton(container, {
+            theme: 'filled_blue',
+            size: 'large',
+            shape: 'pill',
+            text: 'continue_with',
+            width: 250
+          });
         }
-      });
-      return;
-    } catch (e) {
-      // Fallback
+      } catch (err) {
+        console.warn('Google GIS init:', err);
+      }
     }
+  })
+  .catch(err => console.warn('Auth config error:', err));
+
+function openGoogleModal() {
+  if (googleModal) {
+    googleModal.classList.remove('hidden');
+    googleModalInput?.focus();
   }
-  promptManualNameOrEmail();
+}
+
+function closeGoogleModal() {
+  if (googleModal) {
+    googleModal.classList.add('hidden');
+  }
+}
+
+document.getElementById('quickGoogleBtn')?.addEventListener('click', openGoogleModal);
+document.getElementById('closeGoogleModalBtn')?.addEventListener('click', closeGoogleModal);
+googleModal?.addEventListener('click', (e) => {
+  if (e.target === googleModal) closeGoogleModal();
 });
 
-function promptManualNameOrEmail() {
-  const userInput = prompt('Enter your Name or Gmail (e.g. Raghav or raghav@gmail.com):');
-  if (!userInput) return;
+function submitGoogleModal() {
+  const val = googleModalInput?.value.trim();
+  if (!val) {
+    alert('Please enter your name or Gmail address');
+    googleModalInput?.focus();
+    return;
+  }
 
-  let resolvedName = userInput.trim();
+  let resolvedName = val;
   if (resolvedName.includes('@')) {
-    // Extract name before @ and capitalize nicely (e.g. raghav.sharma -> Raghav Sharma)
     const raw = resolvedName.split('@')[0];
     resolvedName = raw
       .replace(/[._-]/g, ' ')
@@ -139,8 +173,14 @@ function promptManualNameOrEmail() {
   if (resolvedName) {
     localStorage.setItem('cinedate_user_name', resolvedName);
     syncPrefilledName(resolvedName, null);
+    closeGoogleModal();
   }
 }
+
+document.getElementById('googleModalSubmitBtn')?.addEventListener('click', submitGoogleModal);
+googleModalInput?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') submitGoogleModal();
+});
 
 // Global Google credential response callback (for GIS client)
 window.handleGoogleCredentialResponse = function(response) {

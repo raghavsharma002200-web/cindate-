@@ -57,12 +57,54 @@ function spawnHeart() {
 setInterval(spawnHeart, 2000);
 spawnHeart();
 
-// ── Google Sign In & Name Auto-Suggest ──────────
+// ── Google Sign In & In-App Modal ──────────────
 const savedName = localStorage.getItem('cinedate_user_name');
 const googleBtnText = document.getElementById('heroGoogleBtnText');
+const googleModal = document.getElementById('googleModal');
+const googleModalInput = document.getElementById('googleModalInput');
 
 if (savedName && googleBtnText) {
   googleBtnText.textContent = `Hi, ${savedName} 💕`;
+}
+
+// Fetch auth configuration to render official Google button if client ID is set
+fetch('/api/auth-config')
+  .then(res => res.json())
+  .then(data => {
+    if (data && data.googleClientId && window.google && google.accounts && google.accounts.id) {
+      try {
+        google.accounts.id.initialize({
+          client_id: data.googleClientId,
+          callback: window.handleGoogleCredentialResponse
+        });
+        const container = document.getElementById('googleBtnContainer');
+        if (container) {
+          google.accounts.id.renderButton(container, {
+            theme: 'filled_blue',
+            size: 'large',
+            shape: 'pill',
+            text: 'continue_with',
+            width: 250
+          });
+        }
+      } catch (err) {
+        console.warn('Google GIS init:', err);
+      }
+    }
+  })
+  .catch(err => console.warn('Auth config fetch error:', err));
+
+function openGoogleModal() {
+  if (googleModal) {
+    googleModal.classList.remove('hidden');
+    googleModalInput?.focus();
+  }
+}
+
+function closeGoogleModal() {
+  if (googleModal) {
+    googleModal.classList.add('hidden');
+  }
 }
 
 document.getElementById('heroGoogleBtn')?.addEventListener('click', () => {
@@ -70,26 +112,23 @@ document.getElementById('heroGoogleBtn')?.addEventListener('click', () => {
     window.location.href = '/app';
     return;
   }
-
-  // Try Google One Tap
-  if (window.google && google.accounts && google.accounts.id) {
-    try {
-      google.accounts.id.prompt((notification) => {
-        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-          promptLandingNameOrEmail();
-        }
-      });
-      return;
-    } catch (e) {}
-  }
-  promptLandingNameOrEmail();
+  openGoogleModal();
 });
 
-function promptLandingNameOrEmail() {
-  const userInput = prompt('Enter your Name or Gmail (e.g. Raghav or raghav@gmail.com):');
-  if (!userInput) return;
+document.getElementById('closeGoogleModalBtn')?.addEventListener('click', closeGoogleModal);
+googleModal?.addEventListener('click', (e) => {
+  if (e.target === googleModal) closeGoogleModal();
+});
 
-  let resolvedName = userInput.trim();
+function submitGoogleModal() {
+  const val = googleModalInput?.value.trim();
+  if (!val) {
+    alert('Please enter your name or Gmail address');
+    googleModalInput?.focus();
+    return;
+  }
+
+  let resolvedName = val;
   if (resolvedName.includes('@')) {
     const raw = resolvedName.split('@')[0];
     resolvedName = raw
@@ -100,11 +139,14 @@ function promptLandingNameOrEmail() {
       .join(' ');
   }
 
-  if (resolvedName) {
-    localStorage.setItem('cinedate_user_name', resolvedName);
-    window.location.href = '/app';
-  }
+  localStorage.setItem('cinedate_user_name', resolvedName);
+  window.location.href = '/app';
 }
+
+document.getElementById('googleModalSubmitBtn')?.addEventListener('click', submitGoogleModal);
+googleModalInput?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') submitGoogleModal();
+});
 
 // Global Google response handler for GIS
 window.handleGoogleCredentialResponse = function(response) {

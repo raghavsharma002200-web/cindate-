@@ -25,6 +25,13 @@ app.get('/room/:id', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'room.html'));
 });
 
+// Auth config endpoint (Google OAuth Client ID)
+app.get('/api/auth-config', (req, res) => {
+  res.json({
+    googleClientId: process.env.GOOGLE_CLIENT_ID || ''
+  });
+});
+
 // Dynamic ICE servers endpoint (Supports Metered TURN API or fallback multi-port TURN)
 let cachedIceServers = null;
 let lastIceFetch = 0;
