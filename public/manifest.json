@@ -2,11 +2,11 @@
   "name": "CineDate 💕 Watch Movies Together",
   "short_name": "CineDate",
   "description": "Synced movies and real-time face-to-face video date night for long distance couples",
-  "start_url": "/",
+  "start_url": "/app",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0d0a1a",
-  "theme_color": "#ff6b9d",
+  "background_color": "#0c071e",
+  "theme_color": "#FF2E93",
   "icons": [
     {
       "src": "/icon.svg",

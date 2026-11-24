@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CineDate 💕 — Date Night Lobby</title>
+  <meta name="description" content="Create or join a private CineDate movie room for long distance couples.">
+  <meta name="theme-color" content="#FF2E93">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="CineDate">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/index.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+
+  <!-- Animated starfield -->
+  <canvas id="starfield"></canvas>
+
+  <!-- Floating hearts container -->
+  <div class="hearts-container" id="heartsContainer" aria-hidden="true"></div>
+
+  <main class="container">
+    <!-- Top Nav / Back to Home -->
+    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 680px; margin-bottom: 10px;">
+      <a href="/" style="color: rgba(255,107,157,0.85); text-decoration: none; font-size: 0.85rem; font-weight: 500; display: inline-flex; align-items: center; gap: 4px;">
+        ← Back to Home
+      </a>
+      <div id="googleUserPill" style="display: none; align-items: center; gap: 8px; background: rgba(255,255,255,0.08); padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; border: 1px solid rgba(255,107,157,0.3);">
+        <img id="googleUserAvatar" src="" alt="" style="width: 20px; height: 20px; border-radius: 50%; display: none;">
+        <span id="googleUserName" style="color: #fff; font-weight: 600;"></span>
+        <button id="googleSignOutBtn" style="background: none; border: none; color: #ff6b9d; cursor: pointer; font-size: 0.75rem; padding: 0 4px;" title="Switch account">✕</button>
+      </div>
+    </div>
+
+    <!-- Hero section with new Option 2 Logo -->
+    <header class="hero">
+      <div class="logo-wrap" style="display: inline-block; margin-bottom: 8px;">
+        <img src="/icon.svg" alt="CineDate Logo" style="width: 72px; height: 72px; border-radius: 20px; box-shadow: 0 8px 30px rgba(255,46,147,0.45); filter: drop-shadow(0 4px 15px rgba(255,46,147,0.3));">
+      </div>
+      <h1>CineDate</h1>
+      <p class="tagline">Movie nights, together — no matter the distance 💕</p>
+
+      <!-- Google Sign-In Quick Banner (if not logged in) -->
+      <div id="googleSignInPrompt" style="margin-top: 14px; display: inline-flex; flex-direction: column; align-items: center; gap: 6px;">
+        <button id="quickGoogleBtn" style="background: rgba(255,255,255,0.92); color: #1f1f1f; border: none; padding: 8px 18px; border-radius: 24px; font-weight: 600; font-size: 0.84rem; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.3); transition: transform 0.2s;">
+          <svg width="18" height="18" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+          </svg>
+          <span>Continue with Google / Gmail</span>
+        </button>
+        <span style="font-size: 0.72rem; color: rgba(255,255,255,0.5);">Auto-fills your name so you don't have to type it</span>
+      </div>
+    </header>
+
+    <!-- Action cards -->
+    <div class="cards">
+      <!-- Create room -->
+      <div class="card create-card">
+        <div class="card-icon">🎬</div>
+        <h2>Start a Date Night</h2>
+        <p>Create a private room and share the code with your partner</p>
+
+        <div class="form-group">
+          <label for="createName" class="sr-only">Your name</label>
+          <input
+            type="text"
+            id="createName"
+            placeholder="Enter your name..."
+            maxlength="20"
+            autocomplete="nickname"
+          >
+        </div>
+
+        <button class="btn btn-primary" id="createBtn">
+          <span>✨</span>
+          <span>Create Room</span>
+        </button>
+      </div>
+
+      <!-- Join room -->
+      <div class="card join-card">
+        <div class="card-icon">🌹</div>
+        <h2>Join Date Night</h2>
+        <p>Enter the 6-letter room code your partner shared with you</p>
+
+        <div class="form-group">
+          <label for="joinName" class="sr-only">Your name</label>
+          <input
+            type="text"
+            id="joinName"
+            placeholder="Enter your name..."
+            maxlength="20"
+            autocomplete="nickname"
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="roomCode" class="sr-only">Room code</label>
+          <input
+            type="text"
+            id="roomCode"
+            placeholder="Enter 6-digit room code"
+            maxlength="6"
+            class="code-input"
+            autocomplete="off"
+            autocapitalize="characters"
+          >
+        </div>
+
+        <button class="btn btn-secondary" id="joinBtn">
+          <span>💕</span>
+          <span>Join Room</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Error message -->
+    <div id="errorMsg" class="error-msg" role="alert" aria-live="polite"></div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>Made with 💕 for couples everywhere — works on phone &amp; laptop</p>
+    </footer>
+  </main>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

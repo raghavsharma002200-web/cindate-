@@ -12,6 +12,19 @@ const io = new Server(server, {
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Clean web app & room routes
+app.get('/app', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'app.html'));
+});
+
+app.get('/room', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'room.html'));
+});
+
+app.get('/room/:id', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'room.html'));
+});
+
 // Dynamic ICE servers endpoint (Supports Metered TURN API or fallback multi-port TURN)
 let cachedIceServers = null;
 let lastIceFetch = 0;
