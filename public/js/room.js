@@ -20,6 +20,7 @@ let isCamOff            = false;
 let currentPlayingState = false;
 let ignoreEventsUntil   = 0;
 let lastYtState         = -1;
+let pendingMovieSync    = null;
 
 // ── DOM refs ─────────────────────────────────────────────────────
 const $  = id => document.getElementById(id);
@@ -364,23 +365,16 @@ socket.on('room-info', ({ userCount, movieState, otherUsers }) => {
     setStatus('waiting', 'Waiting for partner…');
   }
 
-  // If a movie was already playing, sync to it once YouTube is ready
+  // If a movie was already playing or loaded, sync to it
   if (movieState && movieState.videoId) {
-    const trySync = () => {
-      if (ytReady && ytPlayer) {
-        ignoreEventsUntil = Date.now() + 2500;
-        ytPlayer.loadVideoById(movieState.videoId, movieState.time || 0);
-        currentPlayingState = !!movieState.playing;
-        updatePlayPauseBtn(currentPlayingState);
-        $('moviePlaceholder')?.classList.add('hidden');
-        if (!movieState.playing) {
-          setTimeout(() => { if (ytPlayer.pauseVideo) ytPlayer.pauseVideo(); }, 800);
-        }
-      } else {
-        setTimeout(trySync, 500);
-      }
-    };
-    setTimeout(trySync, 1000);
+    applyMovieSync({
+      action: 'load',
+      videoId: movieState.videoId,
+      time: movieState.time || 0
+    });
+    if (movieState.playing === false) {
+      setTimeout(() => applyMovieSync({ action: 'pause' }), 1200);
+    }
   }
 });
 
@@ -469,21 +463,29 @@ socket.on('user-left', ({ userId }) => {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    MOVIE SYNC
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-socket.on('movie-sync', ({ action, time, videoId }) => {
-  console.log('[Sync] Received from partner:', action, time, videoId);
-  if (!ytPlayer || !ytReady) return;
 
-  // Temporarily ignore state events caused by this server update
-  ignoreEventsUntil = Date.now() + 1400;
+function applyMovieSync(data) {
+  if (!data) return;
+  const { action, time, videoId } = data;
+
+  if (!ytPlayer || !ytReady) {
+    console.log('[Sync] Player not initialized yet, queued pending movie sync:', action, videoId);
+    pendingMovieSync = data;
+    return;
+  }
+
+  // Ignore self-triggered player events during remote sync execution
+  ignoreEventsUntil = Date.now() + 1500;
 
   try {
     if (action === 'load' && videoId) {
       ignoreEventsUntil = Date.now() + 2500;
+      console.log('[Sync] Executing video load:', videoId, 'time:', time || 0);
       ytPlayer.loadVideoById(videoId, time || 0);
       currentPlayingState = true;
       updatePlayPauseBtn(true);
       $('moviePlaceholder')?.classList.add('hidden');
-      showToast('Partner loaded a movie! 🎬');
+      showToast('Movie loaded! 🎬');
 
     } else if (action === 'play') {
       currentPlayingState = true;
@@ -493,31 +495,22 @@ socket.on('movie-sync', ({ action, time, videoId }) => {
         ? ytPlayer.getCurrentTime()
         : 0;
 
-      // Only seek if noticeably out of sync (> 1.5 seconds)
-      if (time !== undefined && Math.abs(myTime - time) > 1.5) {
+      // Align time when resuming playback
+      if (time !== undefined && Math.abs(myTime - time) > 1.2) {
         ytPlayer.seekTo(time, true);
       }
       ytPlayer.playVideo();
+      console.log('[Sync] Video playing in sync at', time);
 
     } else if (action === 'pause') {
       currentPlayingState = false;
       updatePlayPauseBtn(false);
 
-      // Crucial: ALWAYS pause immediately
+      // Crucial: ALWAYS pause without seekTo (seeking on mobile causes auto-play!)
       ytPlayer.pauseVideo();
-
-      // Only seek if drift is large (> 1.5s), and re-ensure pause for mobile
-      const myTime = (ytPlayer.getCurrentTime && typeof ytPlayer.getCurrentTime === 'function')
-        ? ytPlayer.getCurrentTime()
-        : 0;
-
-      if (time !== undefined && Math.abs(myTime - time) > 1.5) {
-        ytPlayer.seekTo(time, true);
-        // On mobile browsers, seekTo might trigger playback; force pause right after
-        setTimeout(() => {
-          if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
-        }, 150);
-      }
+      setTimeout(() => { if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo(); }, 150);
+      setTimeout(() => { if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo(); }, 450);
+      console.log('[Sync] Video firmly paused');
 
     } else if (action === 'seek') {
       if (time !== undefined) {
@@ -532,6 +525,11 @@ socket.on('movie-sync', ({ action, time, videoId }) => {
   } catch (err) {
     console.error('[Sync] Error applying sync:', err);
   }
+}
+
+socket.on('movie-sync', (data) => {
+  console.log('[Sync] Received from partner:', data);
+  applyMovieSync(data);
 });
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -564,6 +562,11 @@ window.onYouTubeIframeAPIReady = function () {
 function onYtReady() {
   console.log('[YT] Player ready');
   ytReady = true;
+  if (pendingMovieSync) {
+    console.log('[YT] Executing pending movie sync after player ready:', pendingMovieSync);
+    applyMovieSync(pendingMovieSync);
+    pendingMovieSync = null;
+  }
 }
 
 function onYtStateChange(event) {
@@ -629,15 +632,17 @@ function togglePlayPause() {
   if (currentPlayingState) {
     // Currently playing -> pause for both
     currentPlayingState = false;
-    ignoreEventsUntil = Date.now() + 1200;
+    ignoreEventsUntil = Date.now() + 1500;
     ytPlayer.pauseVideo();
+    setTimeout(() => { if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo(); }, 150);
+    setTimeout(() => { if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo(); }, 400);
     updatePlayPauseBtn(false);
     socket.emit('movie-action', { action: 'pause', time: myTime });
     showToast('Paused for both ⏸');
   } else {
     // Currently paused -> play for both
     currentPlayingState = true;
-    ignoreEventsUntil = Date.now() + 1200;
+    ignoreEventsUntil = Date.now() + 1500;
     ytPlayer.playVideo();
     updatePlayPauseBtn(true);
     socket.emit('movie-action', { action: 'play', time: myTime });
@@ -708,12 +713,15 @@ function loadYouTubeVideo() {
   }
 
   if (!ytPlayer || !ytReady) {
-    showToast('Player not ready yet — please wait…');
+    showToast('Player initializing… loading in 2 seconds 🎬');
+    pendingMovieSync = { action: 'load', videoId };
+    socket.emit('movie-action', { action: 'load', videoId });
+    if (urlInput) urlInput.value = '';
     return;
   }
 
   ignoreEventsUntil = Date.now() + 2500;
-  ytPlayer.loadVideoById(videoId);
+  ytPlayer.loadVideoById(videoId, 0);
   currentPlayingState = true;
   updatePlayPauseBtn(true);
   socket.emit('movie-action', { action: 'load', videoId });
@@ -897,6 +905,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // Copy room code
   $('copyRoomBtn')?.addEventListener('click', copyRoomCode);
 
+  // Spicy Date Alert dismiss button
+  $('closeSpicyAlertBtn')?.addEventListener('click', () => {
+    $('spicyAlertModal')?.classList.add('hidden');
+    unlockAudioPlayback();
+    showToast('Enjoy your date night 💕🍿');
+  });
+
   // Reconnect on tapping status badge
   $('connectionStatus')?.addEventListener('click', () => {
     if (partnerId) {
@@ -911,6 +926,17 @@ document.addEventListener('DOMContentLoaded', () => {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    BOOT
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+// Fetch dynamic regional cloud TURN servers (e.g. Metered / Multi-Cloud)
+fetch('/api/ice-servers')
+  .then(res => res.json())
+  .then(data => {
+    if (data && data.iceServers && data.iceServers.length > 0) {
+      ICE_CONFIG.iceServers = data.iceServers;
+      console.log(`[ICE] Configured ${data.iceServers.length} cloud relay servers`);
+    }
+  })
+  .catch(err => console.warn('[ICE] Using default servers:', err));
 
 // Start camera first, then announce join so tracks are ready for handshake
 startMedia().finally(() => {

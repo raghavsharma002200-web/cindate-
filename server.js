@@ -12,6 +12,47 @@ const io = new Server(server, {
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Dynamic ICE servers endpoint (Supports Metered TURN API or fallback multi-port TURN)
+let cachedIceServers = null;
+let lastIceFetch = 0;
+
+app.get('/api/ice-servers', async (req, res) => {
+  const apiKey = process.env.METERED_API_KEY;
+  const appName = process.env.METERED_APP_NAME;
+
+  if (apiKey && appName) {
+    if (cachedIceServers && Date.now() - lastIceFetch < 600000) {
+      return res.json({ iceServers: cachedIceServers });
+    }
+    try {
+      const response = await fetch(`https://${appName}.metered.live/api/v1/turn/credentials?apiKey=${apiKey}`);
+      if (response.ok) {
+        cachedIceServers = await response.json();
+        lastIceFetch = Date.now();
+        console.log('[Metered] Fresh regional TURN servers fetched successfully');
+        return res.json({ iceServers: cachedIceServers });
+      }
+    } catch (err) {
+      console.warn('[Metered] Failed to fetch dynamic credentials:', err.message);
+    }
+  }
+
+  // Fallback high-reliability multi-cloud STUN & TURN
+  res.json({
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun.cloudflare.com:3478' },
+      { urls: 'stun:openrelay.metered.ca:80' },
+      { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turns:openrelay.metered.ca:5349?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+    ]
+  });
+});
+
 // In-memory room state
 const rooms = {};
 

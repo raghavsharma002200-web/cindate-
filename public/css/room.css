@@ -681,6 +681,132 @@ body::after {
   transform: translateX(-50%) translateY(0);
 }
 
+/* ── Spicy Date Alert Modal ──────────────────────────────── */
+.spicy-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 2, 10, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: modalFadeIn 0.3s ease-out;
+}
+
+.spicy-modal-backdrop.hidden {
+  display: none !important;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.spicy-modal-card {
+  background: linear-gradient(145deg, rgba(26, 16, 45, 0.95), rgba(12, 8, 24, 0.98));
+  border: 1px solid rgba(255, 107, 157, 0.35);
+  border-radius: 24px;
+  padding: 32px 26px 26px;
+  max-width: 440px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 12px 50px rgba(255, 107, 157, 0.25), 0 4px 20px rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  position: relative;
+  animation: cardPopIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes cardPopIn {
+  from { transform: scale(0.9) translateY(20px); opacity: 0; }
+  to   { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.spicy-modal-badge {
+  background: rgba(255, 107, 157, 0.18);
+  color: var(--accent);
+  border: 1px solid rgba(255, 107, 157, 0.35);
+  padding: 4px 14px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.spicy-modal-icon {
+  font-size: 3.2rem;
+  line-height: 1;
+  animation: shakeAlert 2s ease-in-out infinite;
+}
+
+@keyframes shakeAlert {
+  0%, 100% { transform: rotate(0); }
+  10%, 30% { transform: rotate(-8deg); }
+  20%, 40% { transform: rotate(8deg); }
+  50%      { transform: rotate(0); }
+}
+
+.spicy-modal-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.65rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #ff6b9d, #c77dff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  line-height: 1.25;
+}
+
+.spicy-modal-desc {
+  font-size: 0.92rem;
+  color: var(--text);
+  line-height: 1.5;
+  opacity: 0.9;
+}
+
+.spicy-modal-highlight {
+  background: rgba(255, 107, 157, 0.1);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  color: #ffc2d8;
+  line-height: 1.45;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.btn-spicy-modal {
+  width: 100%;
+  margin-top: 6px;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, #ff6b9d, #c77dff);
+  border: none;
+  border-radius: 14px;
+  color: #fff;
+  font-family: 'Outfit', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 24px rgba(255, 107, 157, 0.45);
+  transition: transform var(--transition), box-shadow var(--transition);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-spicy-modal:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 30px rgba(255, 107, 157, 0.6);
+}
+
+.btn-spicy-modal:active {
+  transform: translateY(0);
+}
+
 /* ══════════════════════════════════════════════════════════
    MOBILE OVERRIDES  (≤ 768px — phone portrait)
    ══════════════════════════════════════════════════════════ */
